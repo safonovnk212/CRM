@@ -1,0 +1,30 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\IntakeRequest;
+use App\Jobs\ProcessLead;
+use App\Models\Lead;
+use Illuminate\Http\JsonResponse;
+
+class IntakeController extends Controller
+{
+    public function __invoke(IntakeRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        $lead = Lead::create([
+            'name'     => $data['name']     ?? null,
+            'phone'    => $data['phone'],
+            'click_id' => $data['click_id'] ?? null,
+            'offer_id' => $data['offer_id'] ?? null,
+        ]);
+
+        ProcessLead::dispatch($lead);
+
+        return response()->json([
+            'id'     => $lead->id,
+            'status' => 'queued',
+        ], 202);
+    }
+}

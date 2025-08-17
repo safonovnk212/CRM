@@ -1,0 +1,14 @@
+leadhandler.online {
+    root * /var/www/html/public
+    encode zstd gzip
+
+    php_fastcgi php:9000
+    file_server
+
+    # укажи реальную почту для ACME
+    tls you@example.com
+}
+
+http://leadhandler.online {
+    redir https://{host}{uri} 308
+}

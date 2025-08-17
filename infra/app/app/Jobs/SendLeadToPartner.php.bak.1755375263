@@ -1,0 +1,49 @@
+<?php
+namespace App\Jobs;
+
+use App\Models\Lead;
+use App\Services\PartnerDispatcher;
+use App\Services\KeitaroClient;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class SendLeadToPartner implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    public function __construct(public int $leadId) {}
+
+    public function handle(): void
+    {
+        Log::info("SendLeadToPartner:start", ["leadId"=>$this->leadId]);
+
+        $lead = Lead::find($this->leadId);
+        if(!$lead){
+            Log::warning("SendLeadToPartner:lead_not_found", ["leadId"=>$this->leadId]);
+            return;
+        }
+
+        $res = PartnerDispatcher::send($lead->toArray());
+
+        if(!empty($res["skip"])) {
+            Log::info("SendLeadToPartner:skip", ["leadId"=>$this->leadId]);
+            return;
+        }
+
+        if(!empty($res["ok"])) {
+            $lead->status = "sent";
+        } else {
+            $lead->status = "error";
+        }
+        $lead->save();
+
+        if($lead->click_id){
+            KeitaroClient::sendConversion($lead->click_id, "lead", null);
+        }
+
+        Log::info("SendLeadToPartner:done", ["leadId"=>$this->leadId, "res"=>$res ?? null, "status"=>$lead->status]);
+    }
+}

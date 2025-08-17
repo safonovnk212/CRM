@@ -1,0 +1,52 @@
+services:
+  # redis виден и в своей сети проекта, и в сети воркеров
+  redis:
+    networks:
+      - default
+      - worker_net
+
+  # worker (образ как у php — infra-php)
+  worker:
+    image: infra-php
+    working_dir: /var/www/html
+    volumes:
+      - ./app:/var/www/html
+    depends_on:
+      - redis
+      - mysql
+    command: >
+      sh -lc '
+        # чистим кэш без зависимостей от БД
+        export CACHE_DRIVER=file;
+        php artisan config:clear  || true;
+        php artisan cache:clear   || true;
+        php artisan route:clear   || true;
+        unset CACHE_DRIVER;
+
+        echo "[wait] redis";
+        until nc -z redis 6379; do sleep 1; done;
+
+        echo "[wait] mysql (via Laravel select 1)";
+        until php -r "
+          error_reporting(0);
+          require \"vendor/autoload.php\";
+          $$app=require \"bootstrap/app.php\";
+          $$app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap();
+          try { \\DB::select(\"select 1\"); exit(0);} catch (\\Throwable $$e){ exit(1);}
+        "; do sleep 1; done;
+
+        exec php artisan queue:work --queue=default --sleep=0 --tries=3 --max-time=3600 --timeout=30
+      '
+    networks:
+      - worker_net
+
+  # mysql тоже в сети воркеров
+  mysql:
+    networks:
+      - default
+      - worker_net
+
+networks:
+  worker_net:
+    name: infra_default
+    external: true

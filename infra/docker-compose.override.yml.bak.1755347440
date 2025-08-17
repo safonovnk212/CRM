@@ -1,0 +1,50 @@
+services:
+  php:
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+    healthcheck:
+      test: ["CMD", "php", "-v"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    image: infra-php
+    depends_on:
+      - redis
+    working_dir: /var/www/html
+    # через sh -lc, чтобы гарантированно увидеть artisan в рабочей директории
+    command: sh -lc 'php artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600'
+    restart: unless-stopped
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+      # корень проекта (код + artisan) в read-only
+      - ./:/var/www/html:ro
+      # поверх — writable для runtime-папок
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+    healthcheck:
+      test: ["CMD", "php", "-r", "file_exists(\"/var/www/html/artisan\") ? exit(0) : exit(1);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./public:/srv/public:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy_data:
+  caddy_config:

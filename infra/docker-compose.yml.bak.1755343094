@@ -1,0 +1,54 @@
+services:
+  caddy:
+    image: caddy:2.7
+    restart: unless-stopped
+    ports: ["80:80","443:443"]
+    environment:
+      - PRIMARY_DOMAIN=${PRIMARY_DOMAIN}
+      - SERVER_IP=${SERVER_IP}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./app:/srv/app:rw
+      - ./logs:/var/log/caddy
+    depends_on: [php]
+    networks: [infra_net]
+
+  php:
+    build: { context: ./docker/php }
+    restart: unless-stopped
+    environment:
+      - PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT}
+      - PHP_UPLOAD_LIMIT=${PHP_UPLOAD_LIMIT}
+      - TZ=${TZ}
+    volumes:
+      - ./app:/var/www/html:rw
+      - ./storage:/var/www/html/storage
+    networks: [infra_net]
+
+  mysql:
+    image: mysql:8.3
+    restart: unless-stopped
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - TZ=${TZ}
+    command: ["mysqld","--default-authentication-plugin=mysql_native_password","--character-set-server=utf8mb4","--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - ./dbdata:/var/lib/mysql
+    ports: ["3306:3306"]
+    networks: [infra_net]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server","--appendonly","yes"]
+    volumes:
+      - ./redisdata:/data
+    ports: ["6379:6379"]
+    networks: [infra_net]
+
+networks:
+  infra_net:
+    driver: bridge

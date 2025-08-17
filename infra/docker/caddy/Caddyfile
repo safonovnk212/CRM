@@ -1,0 +1,23 @@
+{
+    # email admin@leadhandler.online
+}
+
+{$PRIMARY_DOMAIN} {
+    root * /srv/app/public
+    php_fastcgi php:9000
+    encode zstd gzip
+    file_server
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# Временный доступ по IP и localhost (самоподписанный сертификат)
+{$SERVER_IP}, localhost, 127.0.0.1 {
+    tls internal
+    root * /srv/app/public
+    php_fastcgi php:9000
+    encode zstd gzip
+    file_server
+}

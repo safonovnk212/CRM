@@ -1,0 +1,17 @@
+services:
+  redis:
+    healthcheck:
+      test: ["CMD-SHELL","redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  worker:
+    healthcheck:
+      # через явный /bin/sh -lc и достаточно щедрые интервалы
+      test: ["CMD","/bin/sh","-lc","/var/www/html/docker/health/worker.sh"]
+      interval: 30s
+      timeout: 15s          # было 5s — увеличиваем
+      retries: 3
+      start_period: 45s     # даём Laravelу и очереди спокойно запуститься

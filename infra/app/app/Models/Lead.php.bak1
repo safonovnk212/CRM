@@ -1,0 +1,17 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Lead extends Model
+{
+    protected \$fillable = ["name","phone","click_id","offer_id"];
+    // Разрешаем массовое заполнение всех полей
+    protected $guarded = [];
+
+    // JSON cast для колонки extra
+    protected $casts = [
+        'extra' => 'array',
+    ];
+}

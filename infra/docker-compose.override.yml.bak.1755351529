@@ -1,0 +1,26 @@
+services:
+  worker:
+    image: infra-php
+    depends_on:
+      - redis
+      - mysql
+    working_dir: /var/www/html/infra/app
+    volumes:
+      - ../:/var/www/html
+    command: ["php", "artisan", "queue:work", "--queue=default", "--sleep=3", "--tries=3", "--max-time=3600"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "test", "-f", "/var/www/html/infra/app/artisan"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - infra_net
+
+  caddy:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  caddy:

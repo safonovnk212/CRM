@@ -1,0 +1,48 @@
+services:
+  php:
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+    healthcheck:
+      test: ["CMD", "php", "-v"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    image: infra-php
+    depends_on:
+      - php
+      - redis
+    working_dir: /var/www/html
+    # сам воркер
+    command: php artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600
+    restart: unless-stopped
+
+    # ВАЖНО: сначала весь проект RO, потом точечно даём RW для storage/public
+    volumes:
+      - ./:/var/www/html:ro
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(0);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./public:/srv/public:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy_data:
+  caddy_config:

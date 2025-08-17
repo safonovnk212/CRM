@@ -1,0 +1,72 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Models\Lead;
+use App\Services\PartnerDispatcher;
+use App\Services\KeitaroClient;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class SendLeadToPartner implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public function __construct(public int $leadId) {}
+
+    public function handle(): void
+    {
+        Log::info("SendLeadToPartner:start", ["leadId" => $this->leadId]);
+
+        $lead = Lead::find($this->leadId);
+        if (!$lead) {
+            Log::warning("SendLeadToPartner:lead_not_found", ["leadId"=>$this->leadId]);
+            return;
+        }
+
+        $res = PartnerDispatcher::send($lead->toArray());
+
+        if (!empty($res["skip"])) {
+            Log::info("SendLeadToPartner:skip", ["leadId"=>$this->leadId]);
+            return;
+        }
+
+        // ЛОГИРУЕМ ВЕСЬ ОТВЕТ, включая body
+        Log::info("PartnerDispatcher: response (raw)", [
+            "ok"   => $res["ok"] ?? null,
+            "code" => $res["code"] ?? null,
+            "url"  => $res["url"] ?? null,
+            "body" => $res["body"] ?? null,
+        ]);
+
+        // По умолчанию считаем ошибкой
+        $lead->status = "error";
+
+        // Если HTTP-слой ок — пытаемся прочитать JSON и поле code
+        if (!empty($res["ok"]) && isset($res["body"])) {
+            $decoded = json_decode($res["body"], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && array_key_exists("code", $decoded)) {
+                $lead->status = ((int)$decoded["code"] === 0) ? "sent" : "error";
+            } else {
+                // body не JSON или без поля code → ошибка
+                $lead->status = "error";
+            }
+        }
+
+        $lead->save();
+
+        // (как и раньше) отправляем конверсию в Кейтаро, если есть click_id
+        if ($lead->click_id) {
+            KeitaroClient::sendConversion($lead->click_id, "lead", null);
+        }
+
+        Log::info("SendLeadToPartner:done", [
+            "leadId" => $this->leadId,
+            "status" => $lead->status,
+        ]);
+    }
+}

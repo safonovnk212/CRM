@@ -1,0 +1,55 @@
+services:
+  php:
+    volumes:
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+    healthcheck:
+      test: ["CMD", "php", "-v"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    image: infra-php
+    depends_on:
+      php:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # корень проекта внутри
+    working_dir: /var/www/html
+    # отдельный процесс воркера
+    command: >
+      sh -lc 'php artisan queue:work --queue=default
+      --sleep=3 --tries=3 --max-time=3600'
+    restart: unless-stopped
+    # КЛЮЧЕВОЕ: даём воркеру весь проект (RO),
+    # а нужные каталоги — RW, чтобы он мог писать логи/кэш и т.п.
+    volumes:
+      - ./:/var/www/html:ro
+      - ./storage:/var/www/html/storage
+      - ./public:/var/www/html/public
+      - ./bootstrap/cache:/var/www/html/bootstrap/cache
+      - ./vendor:/var/www/html/vendor
+    # простой healthcheck: наличие artisan
+    healthcheck:
+      test: ["CMD", "sh", "-lc", "[ -f /var/www/html/artisan ]"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./public:/srv/public:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,48 @@
+services:
+  # redis в своей сети проекта и в сети воркеров
+  redis:
+    networks:
+      - default
+      - worker_net
+
+  # worker (ждёт порты redis и mysql; без php -r)
+  worker:
+    image: infra-php
+    working_dir: /var/www/html
+    volumes:
+      - ./app:/var/www/html
+    depends_on:
+      - redis
+      - mysql
+    command: >
+      sh -lc '
+        export CACHE_DRIVER=file;
+        php artisan config:clear  || true;
+        php artisan cache:clear   || true;
+        php artisan route:clear   || true;
+        unset CACHE_DRIVER;
+
+        echo "[wait] redis:6379";
+        until nc -z redis 6379; do sleep 1; done;
+
+        echo "[wait] mysql:3306";
+        until nc -z mysql 3306; do sleep 1; done;
+
+        # даём mysql ещё чуть-чуть времени на инициализацию
+        sleep 2;
+
+        exec php artisan queue:work --queue=default --sleep=0 --tries=3 --max-time=3600 --timeout=30
+      '
+    networks:
+      - worker_net
+
+  # mysql тоже виден в сети воркеров
+  mysql:
+    networks:
+      - default
+      - worker_net
+
+networks:
+  worker_net:
+    name: infra_default
+    external: true

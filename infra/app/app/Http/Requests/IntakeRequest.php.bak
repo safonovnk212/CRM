@@ -1,0 +1,27 @@
+<?php
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class IntakeRequest extends FormRequest
+{
+    public function authorize(): bool { return true; }
+
+    public function rules(): array {
+        return [
+            'name'     => ['nullable','string','max:255'],
+            'phone'    => ['required','string','max:64'],
+            'click_id' => ['nullable','string','max:255'],
+            'offer_id' => ['nullable','string','max:255'],
+            'website'  => ['nullable', 'prohibited'], // honeypot
+        ];
+    }
+
+    protected function prepareForValidation(): void {
+        if ($this->has('phone')) {
+            $this->merge([
+                'phone' => preg_replace('/\s+/', '', (string)$this->input('phone')),
+            ]);
+        }
+    }
+}
