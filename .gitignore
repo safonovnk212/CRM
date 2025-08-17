@@ -40,3 +40,27 @@
 # Docker/runtime/tmp
 /tmp/
 docker-data/
+
+# === infra runtime / secrets ===
+infra/.env*
+infra/backups/
+infra/public-backup-*
+infra/dbdata/
+infra/redisdata/
+infra/caddy_data/
+infra/docker-data/
+infra/storage/logs/*
+!infra/storage/logs/.gitignore
+
+# мусор/ошибочные файлы
+infra/false,code=
+infra/null]
+infra/null,url=
+infra/string,
+infra/bool,
+infra/?int,
+infra/?string]
+infra/array]
+infra/$url,
+infra/$url,body=
+"infra/\"
